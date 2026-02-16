@@ -1,3 +1,4 @@
+import base64
 import json
 import random
 from pathlib import Path
@@ -37,13 +38,36 @@ def get_hexagram_key(upper: str, lower: str) -> str:
     return TRIGRAM_TO_BITS[upper] + TRIGRAM_TO_BITS[lower]
 
 
-def show_hexagram_image(hexagram_name: str):
+@st.cache_data
+def image_to_data_uri(image_path: str) -> str:
+    data = Path(image_path).read_bytes()
+    b64 = base64.b64encode(data).decode("ascii")
+    return f"data:image/jpeg;base64,{b64}"
+
+
+def show_hexagram_image(hexagram_name: str, hexagram_key: str):
     image_name = normalize_hexagram_filename(hexagram_name)
     image_path = IMAGE_DIR / f"{image_name}.jpg"
-    if image_path.exists():
-        st.image(str(image_path), caption=hexagram_name, use_container_width=True)
-    else:
+    if not image_path.exists():
         st.error(f"找不到插图：{image_name}.jpg")
+        return
+
+    modal_id = f"hex-modal-{hexagram_key}"
+    data_uri = image_to_data_uri(str(image_path))
+    html = f"""
+    <div class="viewer-wrap">
+        <a class="viewer-thumb-link" href="#{modal_id}" aria-label="打開全屏圖片">
+            <img class="viewer-thumb" src="{data_uri}" alt="{hexagram_name}">
+        </a>
+        <div id="{modal_id}" class="viewer-modal" aria-hidden="true">
+            <a href="#" class="viewer-backdrop" aria-label="關閉"></a>
+            <img class="viewer-modal-img" src="{data_uri}" alt="{hexagram_name}">
+            <a href="#" class="viewer-close" aria-label="關閉">×</a>
+        </div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+    st.caption("点击图片可全屏；竖屏时会自动横向旋转显示。")
 
 
 st.markdown(
@@ -77,6 +101,71 @@ st.markdown(
         color: #9a3412;
         font-size: 0.86rem;
     }
+    .viewer-wrap {
+        width: 100%;
+    }
+    .viewer-thumb-link {
+        display: block;
+        width: 100%;
+    }
+    .viewer-thumb {
+        width: 100%;
+        height: auto;
+        border-radius: 12px;
+        display: block;
+        cursor: zoom-in;
+    }
+    .viewer-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 99999;
+    }
+    .viewer-modal:target {
+        display: block;
+    }
+    .viewer-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.88);
+    }
+    .viewer-modal-img {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        max-width: 98vw;
+        max-height: 98vh;
+        width: auto;
+        height: auto;
+        object-fit: contain;
+        border-radius: 10px;
+        box-shadow: 0 16px 50px rgba(0,0,0,0.45);
+    }
+    .viewer-close {
+        position: absolute;
+        right: 14px;
+        top: 10px;
+        width: 40px;
+        height: 40px;
+        border-radius: 999px;
+        text-decoration: none;
+        background: rgba(15, 23, 42, 0.85);
+        color: #fff;
+        font-size: 28px;
+        line-height: 36px;
+        text-align: center;
+    }
+
+    @media (orientation: portrait) {
+        .viewer-modal-img {
+            transform: translate(-50%, -50%) rotate(90deg);
+            max-width: 96vh;
+            max-height: 96vw;
+            border-radius: 8px;
+        }
+    }
+
     @media (orientation: landscape) {
         .portrait-tip {
             display: none;
@@ -86,12 +175,6 @@ st.markdown(
             padding-bottom: 0.3rem;
             padding-left: 0.7rem;
             padding-right: 0.7rem;
-        }
-        [data-testid="stVerticalBlock"] > [style*="flex-direction: column;"] > [data-testid="element-container"]:has(img) img {
-            max-height: 84vh;
-            width: auto;
-            margin: 0 auto;
-            object-fit: contain;
         }
     }
     </style>
@@ -132,6 +215,6 @@ hexagram_name = hexagrams.get(key)
 
 if hexagram_name:
     st.subheader(hexagram_name)
-    show_hexagram_image(hexagram_name)
+    show_hexagram_image(hexagram_name, key)
 else:
     st.warning(f"未找到对应卦（key: {key}）")
