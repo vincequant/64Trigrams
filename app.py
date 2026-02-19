@@ -4,6 +4,7 @@ import random
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="64 Trigrams Zelda", page_icon="🧿", layout="wide")
 
@@ -62,11 +63,12 @@ def show_hexagram_image(hexagram_name: str, hexagram_key: str):
         </a>
         <div id="{modal_id}" class="viewer-modal" aria-hidden="true">
             <a href="#" class="viewer-backdrop" aria-label="關閉"></a>
-            <div class="viewer-modal-stage">
-                <img class="viewer-modal-img" src="{data_uri}" alt="{hexagram_name}">
+            <div class="viewer-modal-stage" id="{modal_id}-stage">
+                <div class="viewer-zoom-layer" id="{modal_id}-zoom">
+                    <img class="viewer-modal-img" src="{data_uri}" alt="{hexagram_name}">
+                </div>
             </div>
             <div class="viewer-actions">
-                <a class="viewer-action-btn" href="{data_uri}" target="_blank" rel="noopener noreferrer">放大查看</a>
                 <a class="viewer-action-btn viewer-action-download" href="{data_uri}" download="{file_name}">下载到相册</a>
             </div>
             <a href="#" class="viewer-close" aria-label="關閉">×</a>
@@ -74,7 +76,119 @@ def show_hexagram_image(hexagram_name: str, hexagram_key: str):
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
-    st.caption("点击图片可全屏；横屏会默认放大并可拖动查看，支持“下载到相册”。")
+    components.html(
+        f"""
+        <script>
+        (function () {{
+          const modal = parent.document.getElementById("{modal_id}");
+          if (!modal || modal.dataset.zoomReady === "1") return;
+          const stage = parent.document.getElementById("{modal_id}-stage");
+          const zoomLayer = parent.document.getElementById("{modal_id}-zoom");
+          if (!stage || !zoomLayer) return;
+          modal.dataset.zoomReady = "1";
+
+          let scale = 1;
+          let tx = 0;
+          let ty = 0;
+          let mode = "";
+          let startX = 0;
+          let startY = 0;
+          let startTx = 0;
+          let startTy = 0;
+          let startScale = 1;
+          let startDist = 0;
+          let startMidX = 0;
+          let startMidY = 0;
+          const minScale = 1;
+          const maxScale = 4;
+
+          function clamp(v, min, max) {{
+            return Math.min(max, Math.max(min, v));
+          }}
+
+          function touchDist(t1, t2) {{
+            return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+          }}
+
+          function apply() {{
+            zoomLayer.style.transform = `translate(${{tx}}px, ${{ty}}px) scale(${{scale}})`;
+          }}
+
+          function reset() {{
+            scale = 1;
+            tx = 0;
+            ty = 0;
+            mode = "";
+            apply();
+          }}
+
+          stage.addEventListener("touchstart", function (e) {{
+            if (e.touches.length === 2) {{
+              mode = "pinch";
+              startScale = scale;
+              startDist = touchDist(e.touches[0], e.touches[1]);
+              startMidX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+              startMidY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+              startTx = tx;
+              startTy = ty;
+            }} else if (e.touches.length === 1 && scale > 1) {{
+              mode = "pan";
+              startX = e.touches[0].clientX;
+              startY = e.touches[0].clientY;
+              startTx = tx;
+              startTy = ty;
+            }}
+          }}, {{ passive: false }});
+
+          stage.addEventListener("touchmove", function (e) {{
+            if (mode === "pinch" && e.touches.length === 2) {{
+              e.preventDefault();
+              const currentDist = touchDist(e.touches[0], e.touches[1]);
+              const nextScale = clamp(startScale * (currentDist / Math.max(startDist, 1)), minScale, maxScale);
+              const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+              const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+              tx = startTx + (midX - startMidX);
+              ty = startTy + (midY - startMidY);
+              scale = nextScale;
+              apply();
+            }} else if (mode === "pan" && e.touches.length === 1) {{
+              e.preventDefault();
+              tx = startTx + (e.touches[0].clientX - startX);
+              ty = startTy + (e.touches[0].clientY - startY);
+              apply();
+            }}
+          }}, {{ passive: false }});
+
+          stage.addEventListener("touchend", function (e) {{
+            if (e.touches.length === 0) {{
+              mode = "";
+            }} else if (e.touches.length === 1 && scale > 1) {{
+              mode = "pan";
+              startX = e.touches[0].clientX;
+              startY = e.touches[0].clientY;
+              startTx = tx;
+              startTy = ty;
+            }}
+            if (scale <= 1) {{
+              tx = 0;
+              ty = 0;
+              scale = 1;
+              apply();
+            }}
+          }});
+
+          parent.window.addEventListener("hashchange", function () {{
+            if (parent.window.location.hash !== "#{modal_id}") {{
+              reset();
+            }}
+          }});
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+    st.caption("点击图片可全屏；可直接双指拉伸缩放，单指拖动查看，支持“下载到相册”。")
 
 
 st.markdown(
@@ -148,7 +262,15 @@ st.markdown(
         overflow: auto;
         padding: 56px 10px 82px;
         -webkit-overflow-scrolling: touch;
-        touch-action: pinch-zoom;
+        touch-action: none;
+    }
+    .viewer-zoom-layer {
+        transform: translate(0, 0) scale(1);
+        transform-origin: center center;
+        will-change: transform;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
     .viewer-modal-img {
         width: min(92vw, 1800px);
@@ -157,7 +279,6 @@ st.markdown(
         object-fit: contain;
         border-radius: 10px;
         box-shadow: 0 16px 50px rgba(0,0,0,0.45);
-        transform-origin: center center;
     }
     .viewer-close {
         position: absolute;
@@ -176,15 +297,13 @@ st.markdown(
     }
     .viewer-actions {
         position: absolute;
-        left: 10px;
-        right: 10px;
+        left: 12px;
+        right: 12px;
         bottom: 12px;
         z-index: 2;
-        display: flex;
-        gap: 10px;
+        display: block;
     }
     .viewer-action-btn {
-        flex: 1;
         display: inline-block;
         text-align: center;
         text-decoration: none;
@@ -195,6 +314,8 @@ st.markdown(
         padding: 9px 10px;
         font-weight: 600;
         font-size: 0.92rem;
+        width: 100%;
+        box-sizing: border-box;
     }
     .viewer-action-download {
         background: #0369a1;
