@@ -54,6 +54,7 @@ def show_hexagram_image(hexagram_name: str, hexagram_key: str):
 
     modal_id = f"hex-modal-{hexagram_key}"
     data_uri = image_to_data_uri(str(image_path))
+    file_name = f"{image_name}.jpg"
     html = f"""
     <div class="viewer-wrap">
         <a class="viewer-thumb-link" href="#{modal_id}" aria-label="打開全屏圖片">
@@ -61,13 +62,19 @@ def show_hexagram_image(hexagram_name: str, hexagram_key: str):
         </a>
         <div id="{modal_id}" class="viewer-modal" aria-hidden="true">
             <a href="#" class="viewer-backdrop" aria-label="關閉"></a>
-            <img class="viewer-modal-img" src="{data_uri}" alt="{hexagram_name}">
+            <div class="viewer-modal-stage">
+                <img class="viewer-modal-img" src="{data_uri}" alt="{hexagram_name}">
+            </div>
+            <div class="viewer-actions">
+                <a class="viewer-action-btn" href="{data_uri}" target="_blank" rel="noopener noreferrer">放大查看</a>
+                <a class="viewer-action-btn viewer-action-download" href="{data_uri}" download="{file_name}">下载到相册</a>
+            </div>
             <a href="#" class="viewer-close" aria-label="關閉">×</a>
         </div>
     </div>
     """
     st.markdown(html, unsafe_allow_html=True)
-    st.caption("点击图片可全屏；竖屏时会自动横向旋转显示。")
+    st.caption("点击图片可全屏；横屏会默认放大并可拖动查看，支持“下载到相册”。")
 
 
 st.markdown(
@@ -120,6 +127,9 @@ st.markdown(
         position: fixed;
         inset: 0;
         z-index: 99999;
+        overflow: auto;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pinch-zoom;
     }
     .viewer-modal:target {
         display: block;
@@ -129,18 +139,25 @@ st.markdown(
         inset: 0;
         background: rgba(0, 0, 0, 0.88);
     }
-    .viewer-modal-img {
+    .viewer-modal-stage {
         position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        max-width: 98vw;
-        max-height: 98vh;
-        width: auto;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: auto;
+        padding: 56px 10px 82px;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pinch-zoom;
+    }
+    .viewer-modal-img {
+        width: min(92vw, 1800px);
+        max-width: min(92vw, 1800px);
         height: auto;
         object-fit: contain;
         border-radius: 10px;
         box-shadow: 0 16px 50px rgba(0,0,0,0.45);
+        transform-origin: center center;
     }
     .viewer-close {
         position: absolute;
@@ -155,13 +172,40 @@ st.markdown(
         font-size: 28px;
         line-height: 36px;
         text-align: center;
+        z-index: 2;
+    }
+    .viewer-actions {
+        position: absolute;
+        left: 10px;
+        right: 10px;
+        bottom: 12px;
+        z-index: 2;
+        display: flex;
+        gap: 10px;
+    }
+    .viewer-action-btn {
+        flex: 1;
+        display: inline-block;
+        text-align: center;
+        text-decoration: none;
+        background: rgba(15, 23, 42, 0.9);
+        color: #fff;
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 10px;
+        padding: 9px 10px;
+        font-weight: 600;
+        font-size: 0.92rem;
+    }
+    .viewer-action-download {
+        background: #0369a1;
+        border-color: #0ea5e9;
     }
 
     @media (orientation: portrait) {
         .viewer-modal-img {
-            transform: translate(-50%, -50%) rotate(90deg);
-            max-width: 96vh;
-            max-height: 96vw;
+            transform: rotate(90deg);
+            width: min(140vh, 1400px);
+            max-width: min(140vh, 1400px);
             border-radius: 8px;
         }
     }
@@ -175,6 +219,12 @@ st.markdown(
             padding-bottom: 0.3rem;
             padding-left: 0.7rem;
             padding-right: 0.7rem;
+        }
+    }
+    @media (orientation: landscape) and (max-width: 900px) {
+        .viewer-modal-img {
+            width: min(160vw, 1800px);
+            max-width: min(160vw, 1800px);
         }
     }
     </style>
